@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/requireAuth.js';
 import {
 	listRooms,
 	createRoom,
@@ -16,7 +15,7 @@ import { handleUpload } from '../controllers/uploadController.js';
 
 export default function chatRoutes(io) {
 	const router = Router();
-	router.use(requireAuth);
+	// Open access: no auth middleware
 
 	router.get('/rooms', listRooms);
 	router.post('/rooms', createRoom);
