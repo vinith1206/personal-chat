@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: private-chat-backend
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: CLIENT_ORIGIN
+        value: https://your-frontend-domain
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        value: mongodb+srv://<username>:<password>@<cluster>.mongodb.net/private-chat
