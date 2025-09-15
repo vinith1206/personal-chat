@@ -43,7 +43,10 @@ export default function Chat() {
 
 	useEffect(() => { document.documentElement.classList.toggle('dark', dark); localStorage.setItem('theme', dark ? 'dark' : 'light') }, [dark])
 
-	const socket = useMemo(() => io('http://localhost:4000', { auth: { name: name || 'Guest' } }), [name])
+	const socket = useMemo(() => {
+		const url = import.meta.env.VITE_SOCKET_URL || (typeof window!== 'undefined' ? window.location.origin.replace(':5173', ':4000') : 'http://localhost:4000')
+		return io(url, { auth: { name: name || 'Guest' } })
+	}, [name])
 
 	useEffect(() => {
 		socket.emit('joinRoom', roomId)
