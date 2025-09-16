@@ -26,7 +26,12 @@ export default function Chat() {
 	const [file, setFile] = useState(null)
 	const [showPicker, setShowPicker] = useState(false)
 	const [onlineUsers, setOnlineUsers] = useState([])
-	const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
+	const [dark, setDark] = useState(() => {
+		if (typeof window !== 'undefined') {
+			return localStorage.getItem('theme') === 'dark'
+		}
+		return false
+	})
 	const typingTimeout = useRef(null)
 	const listRef = useRef(null)
 
@@ -35,13 +40,22 @@ export default function Chat() {
 		const params = new URLSearchParams(window.location.search)
 		const code = params.get('join')
 		if (code) {
-			api.get(`/api/chat/rooms/invite/${code}`).then((res) => {
-				if (res.data?.room?.id) setRoomId(res.data.room.id)
-			})
+			api.get(`/api/chat/rooms/invite/${code}`)
+				.then((res) => {
+					if (res.data?.room?.id) setRoomId(res.data.room.id)
+				})
+				.catch((err) => {
+					console.error('Failed to join room:', err)
+				})
 		}
 	}, [])
 
-	useEffect(() => { document.documentElement.classList.toggle('dark', dark); localStorage.setItem('theme', dark ? 'dark' : 'light') }, [dark])
+	useEffect(() => { 
+		if (typeof window !== 'undefined') {
+			document.documentElement.classList.toggle('dark', dark)
+			localStorage.setItem('theme', dark ? 'dark' : 'light')
+		}
+	}, [dark])
 
 	const socket = useMemo(() => {
 		const url = import.meta.env.VITE_SOCKET_URL || (typeof window!== 'undefined' ? window.location.origin.replace(':5173', ':4000') : 'http://localhost:4000')
@@ -69,8 +83,13 @@ export default function Chat() {
 
 	useEffect(() => {
 		async function load() {
-			const res = await api.get(`/api/chat/rooms/${roomId}/messages`)
-			setMessages(res.data.messages)
+			try {
+				const res = await api.get(`/api/chat/rooms/${roomId}/messages`)
+				setMessages(res.data.messages)
+			} catch (err) {
+				console.error('Failed to load messages:', err)
+				setMessages([])
+			}
 		}
 		load()
 	}, [roomId])
@@ -89,26 +108,39 @@ export default function Chat() {
 	async function send(e) {
 		e.preventDefault()
 		if (!text.trim() && !file) return
-		let attachments = []
-		if (file) {
-			const form = new FormData()
-			form.append('file', file)
-			const u = await api.post('/api/chat/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
-			attachments = [u.data.attachment]
+		try {
+			let attachments = []
+			if (file) {
+				const form = new FormData()
+				form.append('file', file)
+				const u = await api.post('/api/chat/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+				attachments = [u.data.attachment]
+			}
+			await api.post(`/api/chat/rooms/${roomId}/messages`, { text, attachments }, { headers: { 'x-user-name': name || 'Guest' } })
+			setText('')
+			setFile(null)
+			setShowPicker(false)
+		} catch (err) {
+			console.error('Failed to send message:', err)
 		}
-		await api.post(`/api/chat/rooms/${roomId}/messages`, { text, attachments }, { headers: { 'x-user-name': name || 'Guest' } })
-		setText('')
-		setFile(null)
-		setShowPicker(false)
 	}
 
 	async function createInvite() {
-		const r = prompt('Name this room (optional):', 'Friends')
-		const res = await api.post('/api/chat/rooms/invite', { name: r || undefined }, { headers: { 'x-user-name': name || 'Guest' } })
-		const url = res.data?.invite?.url
-		if (url) {
-			navigator.clipboard?.writeText(url)
-			alert(`Invite link copied:\n${url}`)
+		try {
+			const r = prompt('Name this room (optional):', 'Friends')
+			const res = await api.post('/api/chat/rooms/invite', { name: r || undefined }, { headers: { 'x-user-name': name || 'Guest' } })
+			const url = res.data?.invite?.url
+			if (url) {
+				if (navigator.clipboard) {
+					await navigator.clipboard.writeText(url)
+					alert(`Invite link copied:\n${url}`)
+				} else {
+					alert(`Invite link:\n${url}`)
+				}
+			}
+		} catch (err) {
+			console.error('Failed to create invite:', err)
+			alert('Failed to create invite link')
 		}
 	}
 

@@ -7,7 +7,19 @@ export default defineConfig({
 		outDir: 'dist',
 		assetsDir: 'assets',
 		sourcemap: false,
-		minify: 'esbuild'
+		minify: 'esbuild',
+		chunkSizeWarningLimit: 1000,
+		rollupOptions: {
+			output: {
+				manualChunks: {
+					vendor: ['react', 'react-dom'],
+					router: ['react-router-dom'],
+					socket: ['socket.io-client'],
+					emoji: ['emoji-mart', '@emoji-mart/data'],
+					http: ['axios']
+				}
+			}
+		}
 	},
 	server: {
 		port: 5173,
