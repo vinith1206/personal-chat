@@ -68,7 +68,7 @@ VITE_SOCKET_URL=https://your-app.vercel.app
 ```env
 NODE_ENV=production
 LOG_LEVEL=INFO
-MONGO_URI=mongodb+srv://your-username:your-password@your-cluster.mongodb.net/your-database
+MONGO_URI=your-mongodb-connection-string
 JWT_SECRET=your-jwt-secret-here
 CLIENT_ORIGIN=https://your-app.vercel.app
 ```

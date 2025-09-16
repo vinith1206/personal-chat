@@ -45,7 +45,7 @@ A modern, real-time chat application built with React, Vite, and Vercel serverle
 ### Backend (Vercel Serverless)
 - **Runtime**: Node.js 18
 - **Functions**: Vercel serverless functions
-- **Database**: MongoDB (with in-memory fallback)
+- **Database**: MongoDB Atlas (with in-memory fallback)
 - **File Storage**: Vercel blob storage
 - **Middleware**: Custom error handling middleware
 - **Logging**: Server-side structured logging
@@ -91,7 +91,7 @@ A modern, real-time chat application built with React, Vite, and Vercel serverle
 ### Prerequisites
 - Node.js 18+
 - Vercel CLI (optional)
-- MongoDB Atlas account (optional)
+- Database account (optional)
 
 ### Environment Variables
 
@@ -103,7 +103,7 @@ VITE_API_BASE=https://your-app.vercel.app
 VITE_SOCKET_URL=https://your-app.vercel.app
 
 # Server Environment Variables (optional)
-MONGO_URI=mongodb+srv://your-username:your-password@your-cluster.mongodb.net/your-database
+MONGO_URI=your-mongodb-connection-string
 JWT_SECRET=your-jwt-secret-here
 CLIENT_ORIGIN=https://your-app.vercel.app
 LOG_LEVEL=INFO
