@@ -1,25 +1,16 @@
-// Health check API route
-import { NextRequest, NextResponse } from 'next/server';
-import { 
-  withTimeout, 
-  handleApiError,
-  checkMemoryUsage
-} from '../utils/errorHandler.js';
-import { 
-  logFunctionStart, 
-  logFunctionEnd, 
-  logInfo 
-} from '../utils/logger.js';
+// Health check API route for Vercel serverless functions
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-// GET /api/health - Health check endpoint
-export const GET = withTimeout(async (request) => {
-  const startTime = Date.now();
-  const functionName = 'GET /api/health';
-  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
-    logFunctionStart(functionName, request);
-    checkMemoryUsage();
-
     // Check various health indicators
     const health = {
       status: 'healthy',
@@ -41,13 +32,10 @@ export const GET = withTimeout(async (request) => {
 
     const statusCode = allChecksHealthy ? 200 : 503;
 
-    const response = NextResponse.json(health, { status: statusCode });
-
-    logFunctionEnd(functionName, startTime, request);
-    return response;
+    return res.status(statusCode).json(health);
 
   } catch (error) {
-    logError('Health check failed', error, request);
+    console.error('Health check failed', error);
     
     const errorResponse = {
       status: 'unhealthy',
@@ -60,9 +48,9 @@ export const GET = withTimeout(async (request) => {
       }
     };
 
-    return NextResponse.json(errorResponse, { status: 503 });
+    return res.status(503).json(errorResponse);
   }
-}, 5000); // 5 second timeout
+}
 
 // Helper functions
 function getMemoryUsage() {
