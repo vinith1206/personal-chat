@@ -9,11 +9,35 @@
       }
     }
   ],
+  "functions": {
+    "api/health.js": {
+      "maxDuration": 10
+    },
+    "api/chat/messages.js": {
+      "maxDuration": 10
+    },
+    "api/chat/rooms.js": {
+      "maxDuration": 10
+    },
+    "api/chat/upload.js": {
+      "maxDuration": 10
+    },
+    "api/image/optimize.js": {
+      "maxDuration": 15
+    },
+    "api/errors/monitor.js": {
+      "maxDuration": 10
+    },
+    "api/performance/monitor.js": {
+      "maxDuration": 10
+    }
+  },
   "env": {
     "VITE_API_BASE": "${VITE_API_BASE}",
     "VITE_SOCKET_URL": "${VITE_SOCKET_URL}",
     "NODE_ENV": "production",
-    "LOG_LEVEL": "INFO"
+    "LOG_LEVEL": "INFO",
+    "ALLOWED_ORIGINS": "*"
   },
   "headers": [
     {
@@ -34,6 +58,23 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        }
+      ]
+    },
+    {
+      "source": "/api/image/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
       ]
     }

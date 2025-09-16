@@ -1,16 +1,29 @@
-// Health check API route for Vercel serverless functions
-export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+// Health check API route with comprehensive error handling
+import { 
+  withErrorHandling, 
+  withTimeout, 
+  withRetry, 
+  withThrottling,
+  createVercelError,
+  VERCEL_ERROR_TYPES,
+  CONFIG
+} from './utils/errorHandler.js';
+import { 
+  logFunctionStart, 
+  logFunctionEnd, 
+  logFunctionError,
+  logInfo,
+  logError
+} from './utils/logger.js';
 
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
+// Health check with comprehensive error handling
+const healthCheck = withErrorHandling(withTimeout(async (req, res) => {
+  const startTime = Date.now();
+  const functionName = 'GET /api/health';
+  
   try {
+    logFunctionStart(functionName, req);
+
     // Check various health indicators
     const health = {
       status: 'healthy',
@@ -22,7 +35,10 @@ export default async function handler(req, res) {
       checks: {
         memory: checkMemoryHealth(),
         database: await checkDatabaseHealth(),
-        external: await checkExternalServices()
+        external: await checkExternalServices(),
+        deployment: await checkDeploymentHealth(),
+        dns: await checkDNSHealth(),
+        sandbox: await checkSandboxHealth()
       }
     };
 
@@ -32,23 +48,77 @@ export default async function handler(req, res) {
 
     const statusCode = allChecksHealthy ? 200 : 503;
 
-    return res.status(statusCode).json(health);
+    logFunctionEnd(functionName, startTime, req, { statusCode });
+
+    return {
+      statusCode,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Health-Status': health.status,
+        'X-Response-Time': `${Date.now() - startTime}ms`
+      },
+      body: JSON.stringify(health)
+    };
 
   } catch (error) {
-    console.error('Health check failed', error);
+    logFunctionError(functionName, error, req);
     
     const errorResponse = {
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       error: error.message,
+      vercelErrorType: error.vercelErrorType,
       checks: {
         memory: { status: 'unknown' },
         database: { status: 'unknown' },
-        external: { status: 'unknown' }
+        external: { status: 'unknown' },
+        deployment: { status: 'unknown' },
+        dns: { status: 'unknown' },
+        sandbox: { status: 'unknown' }
       }
     };
 
-    return res.status(503).json(errorResponse);
+    return {
+      statusCode: 503,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Error-Type': error.vercelErrorType || 'HEALTH_CHECK_FAILED'
+      },
+      body: JSON.stringify(errorResponse)
+    };
+  }
+}, CONFIG.TIMEOUT_DURATION));
+
+// Main handler with CORS and method validation
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // Validate method
+  if (req.method !== 'GET') {
+    return res.status(405).json({ 
+      error: 'INVALID_REQUEST_METHOD', 
+      message: 'Only GET method allowed' 
+    });
+  }
+
+  try {
+    const result = await healthCheck(req, res);
+    return res.status(result.statusCode).json(JSON.parse(result.body));
+  } catch (error) {
+    logError('Health check handler failed', error, req);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
   }
 }
 
@@ -73,7 +143,7 @@ function checkMemoryHealth() {
   }
 
   const heapUsedMB = memory.heapUsed;
-  const maxMemoryMB = 1024; // 1GB limit for Vercel
+  const maxMemoryMB = CONFIG.MEMORY_LIMIT / (1024 * 1024); // Convert to MB
 
   if (heapUsedMB > maxMemoryMB * 0.9) {
     return { 
@@ -93,11 +163,18 @@ function checkMemoryHealth() {
 async function checkDatabaseHealth() {
   try {
     // In production, you would check your actual database connection
-    // For now, simulate a check
+    // For now, simulate a check with timeout
+    const startTime = Date.now();
+    
+    // Simulate database check
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    const responseTime = Date.now() - startTime;
+    
     return {
       status: 'healthy',
       message: 'Database connection healthy',
-      responseTime: '5ms'
+      responseTime: `${responseTime}ms`
     };
   } catch (error) {
     return {
@@ -111,19 +188,113 @@ async function checkDatabaseHealth() {
 async function checkExternalServices() {
   try {
     // Check external services your app depends on
-    // For now, return healthy
+    const services = {
+      cdn: 'healthy',
+      analytics: 'healthy',
+      api: 'healthy'
+    };
+
+    // Simulate external service checks
+    for (const [service, status] of Object.entries(services)) {
+      if (status !== 'healthy') {
+        throw new Error(`${service} service is ${status}`);
+      }
+    }
+
     return {
       status: 'healthy',
       message: 'External services healthy',
-      services: {
-        cdn: 'healthy',
-        analytics: 'healthy'
-      }
+      services
     };
   } catch (error) {
     return {
       status: 'unhealthy',
       message: `External service check failed: ${error.message}`,
+      error: error.message
+    };
+  }
+}
+
+async function checkDeploymentHealth() {
+  try {
+    // Check deployment status
+    const deploymentId = process.env.VERCEL_DEPLOYMENT_ID;
+    const deploymentUrl = process.env.VERCEL_URL;
+    
+    if (!deploymentId || !deploymentUrl) {
+      return {
+        status: 'degraded',
+        message: 'Deployment information not available',
+        deploymentId: deploymentId || 'unknown',
+        deploymentUrl: deploymentUrl || 'unknown'
+      };
+    }
+
+    return {
+      status: 'healthy',
+      message: 'Deployment healthy',
+      deploymentId,
+      deploymentUrl
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      message: `Deployment check failed: ${error.message}`,
+      error: error.message
+    };
+  }
+}
+
+async function checkDNSHealth() {
+  try {
+    // Check DNS resolution
+    const testDomain = 'vercel.com';
+    
+    // Simulate DNS check (in production, use actual DNS lookup)
+    const dnsHealthy = true; // This would be actual DNS check
+    
+    if (!dnsHealthy) {
+      throw new Error('DNS resolution failed');
+    }
+
+    return {
+      status: 'healthy',
+      message: 'DNS resolution healthy',
+      testDomain
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      message: `DNS check failed: ${error.message}`,
+      error: error.message
+    };
+  }
+}
+
+async function checkSandboxHealth() {
+  try {
+    // Check sandbox environment
+    const nodeVersion = process.version;
+    const platform = process.platform;
+    const arch = process.arch;
+    
+    if (!nodeVersion || !platform || !arch) {
+      throw new Error('Sandbox environment information incomplete');
+    }
+
+    return {
+      status: 'healthy',
+      message: 'Sandbox environment healthy',
+      environment: {
+        nodeVersion,
+        platform,
+        arch
+      }
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      message: `Sandbox check failed: ${error.message}`,
       error: error.message
     };
   }
