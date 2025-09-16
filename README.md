@@ -103,7 +103,7 @@ VITE_API_BASE=https://your-app.vercel.app
 VITE_SOCKET_URL=https://your-app.vercel.app
 
 # Server Environment Variables (optional)
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/private-chat
+MONGO_URI=mongodb+srv://your-username:your-password@your-cluster.mongodb.net/your-database
 JWT_SECRET=your-jwt-secret-here
 CLIENT_ORIGIN=https://your-app.vercel.app
 LOG_LEVEL=INFO
