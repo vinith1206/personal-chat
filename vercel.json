@@ -1,5 +1,14 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "client/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
   "functions": {
     "api/**/*.js": {
       "maxDuration": 30
@@ -40,9 +49,6 @@
       "destination": "/index.html"
     }
   ],
-  "regions": ["iad1"],
-  "framework": "vite",
-  "buildCommand": "cd client && npm install && npm run build",
-  "outputDirectory": "client/dist"
+  "regions": ["iad1"]
 }
 
