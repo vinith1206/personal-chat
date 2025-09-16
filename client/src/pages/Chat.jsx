@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { api } from '../lib/api'
+import { apiClient } from '../lib/api'
 import { useAuth } from '../context/AuthContext.jsx'
 import data from '@emoji-mart/data'
 import { Picker } from 'emoji-mart'
+import { logUserInteraction, logError } from '../utils/logger'
 
 function classNames(...c){ return c.filter(Boolean).join(' ') }
 function initials(name){
@@ -40,12 +41,13 @@ export default function Chat() {
 		const params = new URLSearchParams(window.location.search)
 		const code = params.get('join')
 		if (code) {
-			api.get(`/api/chat/rooms/invite/${code}`)
+			apiClient.get(`/api/chat/rooms/invite/${code}`)
 				.then((res) => {
 					if (res.data?.room?.id) setRoomId(res.data.room.id)
+					logUserInteraction('join_room_via_invite', { roomId: res.data?.room?.id })
 				})
 				.catch((err) => {
-					console.error('Failed to join room:', err)
+					logError('Failed to join room', err)
 				})
 		}
 	}, [])
@@ -84,10 +86,11 @@ export default function Chat() {
 	useEffect(() => {
 		async function load() {
 			try {
-				const res = await api.get(`/api/chat/rooms/${roomId}/messages`)
-				setMessages(res.data.messages)
+				const res = await apiClient.get(`/api/chat/messages?roomId=${roomId}`)
+				setMessages(res.data.messages || [])
+				logUserInteraction('load_messages', { roomId, messageCount: res.data.messages?.length || 0 })
 			} catch (err) {
-				console.error('Failed to load messages:', err)
+				logError('Failed to load messages', err)
 				setMessages([])
 			}
 		}
@@ -113,33 +116,45 @@ export default function Chat() {
 			if (file) {
 				const form = new FormData()
 				form.append('file', file)
-				const u = await api.post('/api/chat/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+				const u = await apiClient.upload('/api/chat/upload', form)
 				attachments = [u.data.attachment]
 			}
-			await api.post(`/api/chat/rooms/${roomId}/messages`, { text, attachments }, { headers: { 'x-user-name': name || 'Guest' } })
+			await apiClient.post(`/api/chat/messages`, { 
+				roomId, 
+				text, 
+				attachments, 
+				senderName: name || 'Guest' 
+			})
 			setText('')
 			setFile(null)
 			setShowPicker(false)
+			logUserInteraction('send_message', { roomId, hasAttachments: attachments.length > 0 })
 		} catch (err) {
-			console.error('Failed to send message:', err)
+			logError('Failed to send message', err)
 		}
 	}
 
 	async function createInvite() {
 		try {
 			const r = prompt('Name this room (optional):', 'Friends')
-			const res = await api.post('/api/chat/rooms/invite', { name: r || undefined }, { headers: { 'x-user-name': name || 'Guest' } })
-			const url = res.data?.invite?.url
-			if (url) {
+			const res = await apiClient.post('/api/chat/rooms', { 
+				name: r || 'Friends', 
+				createdBy: name || 'Guest',
+				isPrivate: true
+			})
+			const room = res.data?.room
+			if (room) {
+				const url = `${window.location.origin}/?join=${room.inviteCode}`
 				if (navigator.clipboard) {
 					await navigator.clipboard.writeText(url)
 					alert(`Invite link copied:\n${url}`)
 				} else {
 					alert(`Invite link:\n${url}`)
 				}
+				logUserInteraction('create_invite', { roomId: room.id, roomName: room.name })
 			}
 		} catch (err) {
-			console.error('Failed to create invite:', err)
+			logError('Failed to create invite', err)
 			alert('Failed to create invite link')
 		}
 	}
